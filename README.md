@@ -56,6 +56,22 @@ cp .env.example .env
 | `GITHUB_DISCORD_USER_MAP` | - | `githubLogin=discordID,...` |
 | `GITHUB_LABEL_CHANNEL_MAP` | - | `labelName=channelID,...` |
 | `APP_ENV` | - | `production` untuk JSON log |
+| `DISCORD_ALLOWED_USERS` | - | ID Discord yang boleh pakai command privileged (`/ping`, `/invite`), pisah koma. Kosong = semua boleh |
+| `DB_PATH` | - | Path file sqlite untuk data invite (default: `./data/bot.db`) |
+| `PLAN_API_BASE_URL` | - | Base URL API plan (default: `https://api-plan.kancadigital.com`) |
+| `PLAN_API_KEY` | ✅ (untuk `/invite`) | API key plan, dikirim sebagai header `x-api-key` |
+| `PLAN_INVITE_WEB_URL` | - | Base URL link undangan yang dikirim ke user (default: `https://plan.kancadigital.com/invite`) |
+
+### `/invite` command
+
+`/invite project_key:<key> user:<@discord_user>` membuat undangan project plan untuk user Discord yang di-tag:
+
+1. Data invite (user, project key, waktu) disimpan ke sqlite.
+2. Bot memanggil `POST {PLAN_API_BASE_URL}/projects/{project_key}/invites` dengan header `x-api-key` dan body `{"email": "<username>@kancadigital.com", "role": "member"}`.
+3. Token undangan dari response API disimpan kembali ke sqlite (kolom `token_id`).
+4. Bot mengirim DM ke user yang diundang berisi link `{PLAN_INVITE_WEB_URL}/{token}`.
+
+Command ini tunduk pada allowlist `DISCORD_ALLOWED_USERS` yang sama dengan `/ping`.
 
 ### 3. Jalankan
 

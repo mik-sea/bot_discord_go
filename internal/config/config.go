@@ -11,6 +11,8 @@ type Config struct {
 	Discord  DiscordConfig
 	Server   ServerConfig
 	Watcher  WatcherConfig
+	Database DatabaseConfig
+	PlanAPI  PlanAPIConfig
 	UserMap  map[string]string // GitHub login -> Discord user ID
 	LabelMap map[string]string // GitHub label name -> Discord channel ID
 
@@ -40,6 +42,18 @@ type WatcherConfig struct {
 	Dir string
 }
 
+// DatabaseConfig contains local sqlite settings.
+type DatabaseConfig struct {
+	Path string
+}
+
+// PlanAPIConfig contains settings for calling the plan API (used by /invite).
+type PlanAPIConfig struct {
+	BaseURL      string
+	APIKey       string
+	InviteWebURL string // base URL used to build the invite link shown to users
+}
+
 // Load reads all configuration from environment variables.
 // It returns an error if any required variable is missing.
 func Load() (*Config, error) {
@@ -53,6 +67,12 @@ func Load() (*Config, error) {
 	cfg.Server.WebhookSecret = os.Getenv("WEBHOOK_SECRET")
 
 	cfg.Watcher.Dir = getEnvOrDefault("WATCHER_DIR", "./watch")
+
+	cfg.Database.Path = getEnvOrDefault("DB_PATH", "./data/bot.db")
+
+	cfg.PlanAPI.BaseURL = getEnvOrDefault("PLAN_API_BASE_URL", "https://api-plan.kancadigital.com")
+	cfg.PlanAPI.APIKey = os.Getenv("PLAN_API_KEY")
+	cfg.PlanAPI.InviteWebURL = getEnvOrDefault("PLAN_INVITE_WEB_URL", "https://plan.kancadigital.com/invite")
 
 	cfg.UserMap = parseKVMap(os.Getenv("GITHUB_DISCORD_USER_MAP"))
 	cfg.LabelMap = parseKVMap(os.Getenv("GITHUB_LABEL_CHANNEL_MAP"))

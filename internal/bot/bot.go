@@ -12,7 +12,9 @@ import (
 	"github.com/miksea/bot_discord_go/internal/config"
 	"github.com/miksea/bot_discord_go/internal/handler"
 	"github.com/miksea/bot_discord_go/internal/notifier"
+	"github.com/miksea/bot_discord_go/internal/planapi"
 	"github.com/miksea/bot_discord_go/internal/queue"
+	"github.com/miksea/bot_discord_go/internal/store"
 	"github.com/miksea/bot_discord_go/internal/watcher"
 )
 
@@ -32,6 +34,7 @@ type Bot struct {
 	server          *http.Server
 	watcher         *watcher.FileWatcher
 	commandRegistry *command.Registry
+	inviteStore     *store.InviteStore
 }
 
 // New creates and connects all components. It does NOT start any goroutines.
@@ -62,7 +65,13 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 	}
 
 	fw := watcher.New(cfg.Watcher.Dir, q, logger)
-	cmdRegistry := command.NewRegistry(session, cfg, logger)
+
+	inviteStore, err := store.Open(cfg.Database.Path)
+	if err != nil {
+		return nil, fmt.Errorf("open invite store: %w", err)
+	}
+	planClient := planapi.New(cfg.PlanAPI.BaseURL, cfg.PlanAPI.APIKey)
+	cmdRegistry := command.NewRegistry(session, cfg, logger, inviteStore, planClient)
 
 	return &Bot{
 		cfg:             cfg,
@@ -72,6 +81,7 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 		server:          srv,
 		watcher:         fw,
 		commandRegistry: cmdRegistry,
+		inviteStore:     inviteStore,
 	}, nil
 }
 
@@ -147,6 +157,10 @@ func (b *Bot) shutdown() error {
 
 	if err := b.session.Close(); err != nil {
 		b.logger.Error("discord session close error", "error", err)
+	}
+
+	if err := b.inviteStore.Close(); err != nil {
+		b.logger.Error("invite store close error", "error", err)
 	}
 
 	b.logger.Info("shutdown complete")

@@ -6,23 +6,29 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/miksea/bot_discord_go/internal/config"
+	"github.com/miksea/bot_discord_go/internal/planapi"
+	"github.com/miksea/bot_discord_go/internal/store"
 )
 
 // Registry manages slash command registration and routing.
 // It keeps track of registered command IDs so they can be cleanly deleted on shutdown.
 type Registry struct {
-	session      *discordgo.Session
-	cfg          *config.Config
-	logger       *slog.Logger
+	session       *discordgo.Session
+	cfg           *config.Config
+	logger        *slog.Logger
+	inviteStore   *store.InviteStore
+	planClient    *planapi.Client
 	registeredIDs []string // Discord-assigned command IDs (for cleanup)
 }
 
 // NewRegistry creates a new Registry.
-func NewRegistry(session *discordgo.Session, cfg *config.Config, logger *slog.Logger) *Registry {
+func NewRegistry(session *discordgo.Session, cfg *config.Config, logger *slog.Logger, inviteStore *store.InviteStore, planClient *planapi.Client) *Registry {
 	return &Registry{
-		session: session,
-		cfg:     cfg,
-		logger:  logger,
+		session:     session,
+		cfg:         cfg,
+		logger:      logger,
+		inviteStore: inviteStore,
+		planClient:  planClient,
 	}
 }
 
@@ -30,12 +36,14 @@ func NewRegistry(session *discordgo.Session, cfg *config.Config, logger *slog.Lo
 // It must be called after the Discord session is opened.
 func (r *Registry) Register(guildID string) error {
 	ping := NewPingHandler(r.cfg, r.logger)
+	invite := NewInviteHandler(r.cfg, r.logger, r.inviteStore, r.planClient)
 
 	commands := []struct {
 		def     *discordgo.ApplicationCommand
 		handler func(*discordgo.Session, *discordgo.InteractionCreate)
 	}{
 		{Definition(), ping.Handle},
+		{InviteDefinition(), invite.Handle},
 	}
 
 	for _, cmd := range commands {
