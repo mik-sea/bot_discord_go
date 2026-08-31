@@ -13,8 +13,8 @@ type Config struct {
 	Watcher  WatcherConfig
 	Database DatabaseConfig
 	PlanAPI  PlanAPIConfig
+	SMTP     SMTPConfig
 	UserMap  map[string]string // GitHub login -> Discord user ID
-	LabelMap map[string]string // GitHub label name -> Discord channel ID
 
 	// AllowedUsers is the set of Discord user IDs allowed to run privileged commands.
 	// When empty, ALL users are allowed (open mode).
@@ -52,6 +52,20 @@ type PlanAPIConfig struct {
 	BaseURL      string
 	APIKey       string
 	InviteWebURL string // base URL used to build the invite link shown to users
+
+	// InviteEmailDomain is appended to a Discord username to derive the email
+	// address used for "/invite user" (the plan API only accepts emails).
+	InviteEmailDomain string
+}
+
+// SMTPConfig contains credentials for sending invite emails via "/invite email".
+// All values come from environment variables — never hardcode credentials in code.
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
 }
 
 // Load reads all configuration from environment variables.
@@ -73,9 +87,15 @@ func Load() (*Config, error) {
 	cfg.PlanAPI.BaseURL = getEnvOrDefault("PLAN_API_BASE_URL", "https://api-plan.kancadigital.com")
 	cfg.PlanAPI.APIKey = os.Getenv("PLAN_API_KEY")
 	cfg.PlanAPI.InviteWebURL = getEnvOrDefault("PLAN_INVITE_WEB_URL", "https://plan.kancadigital.com/invite")
+	cfg.PlanAPI.InviteEmailDomain = getEnvOrDefault("PLAN_INVITE_EMAIL_DOMAIN", "@kancadigital.com")
+
+	cfg.SMTP.Host = os.Getenv("SMTP_HOST")
+	cfg.SMTP.Port = getEnvOrDefault("SMTP_PORT", "587")
+	cfg.SMTP.Username = os.Getenv("SMTP_USERNAME")
+	cfg.SMTP.Password = os.Getenv("SMTP_PASSWORD")
+	cfg.SMTP.From = getEnvOrDefault("SMTP_FROM", cfg.SMTP.Username)
 
 	cfg.UserMap = parseKVMap(os.Getenv("GITHUB_DISCORD_USER_MAP"))
-	cfg.LabelMap = parseKVMap(os.Getenv("GITHUB_LABEL_CHANNEL_MAP"))
 	cfg.AllowedUsers = parseIDSet(os.Getenv("DISCORD_ALLOWED_USERS"))
 	return cfg, cfg.validate()
 }
@@ -88,17 +108,6 @@ func (c *Config) validate() error {
 		return fmt.Errorf("DISCORD_DEFAULT_CHANNEL is required")
 	}
 	return nil
-}
-
-// ResolveChannel returns the Discord channel ID for a given set of label names.
-// It uses the first label that has a mapping; falls back to the default channel.
-func (c *Config) ResolveChannel(labels []string) string {
-	for _, lbl := range labels {
-		if ch, ok := c.LabelMap[lbl]; ok {
-			return ch
-		}
-	}
-	return c.Discord.DefaultChannel
 }
 
 // ResolveDiscordUser returns the Discord user ID for a GitHub login.

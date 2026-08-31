@@ -11,6 +11,7 @@ import (
 	"github.com/miksea/bot_discord_go/internal/command"
 	"github.com/miksea/bot_discord_go/internal/config"
 	"github.com/miksea/bot_discord_go/internal/handler"
+	"github.com/miksea/bot_discord_go/internal/mailer"
 	"github.com/miksea/bot_discord_go/internal/notifier"
 	"github.com/miksea/bot_discord_go/internal/planapi"
 	"github.com/miksea/bot_discord_go/internal/queue"
@@ -47,7 +48,12 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 	// IntentsGuilds wajib agar Discord mengirim event guild ke bot.
 	session.Identify.Intents = discordgo.IntentsGuilds
 
-	n := notifier.New(session, cfg, logger)
+	inviteStore, err := store.Open(cfg.Database.Path)
+	if err != nil {
+		return nil, fmt.Errorf("open invite store: %w", err)
+	}
+
+	n := notifier.New(session, cfg, inviteStore, logger)
 	q := queue.New(queueCapacity, n.Notify, logger)
 
 	webhookHandler := handler.NewWebhookHandler(q, cfg.Server.WebhookSecret, logger)
@@ -66,12 +72,9 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 
 	fw := watcher.New(cfg.Watcher.Dir, q, logger)
 
-	inviteStore, err := store.Open(cfg.Database.Path)
-	if err != nil {
-		return nil, fmt.Errorf("open invite store: %w", err)
-	}
 	planClient := planapi.New(cfg.PlanAPI.BaseURL, cfg.PlanAPI.APIKey)
-	cmdRegistry := command.NewRegistry(session, cfg, logger, inviteStore, planClient)
+	mailClient := mailer.New(cfg.SMTP)
+	cmdRegistry := command.NewRegistry(session, cfg, logger, inviteStore, planClient, mailClient)
 
 	return &Bot{
 		cfg:             cfg,

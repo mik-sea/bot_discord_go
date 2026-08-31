@@ -9,20 +9,23 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/miksea/bot_discord_go/internal/config"
 	"github.com/miksea/bot_discord_go/internal/model"
+	"github.com/miksea/bot_discord_go/internal/store"
 )
 
 // Notifier sends Discord notifications for GitHub issues.
 type Notifier struct {
 	session *discordgo.Session
 	cfg     *config.Config
+	store   *store.InviteStore
 	logger  *slog.Logger
 }
 
 // New creates a new Notifier.
-func New(session *discordgo.Session, cfg *config.Config, logger *slog.Logger) *Notifier {
+func New(session *discordgo.Session, cfg *config.Config, store *store.InviteStore, logger *slog.Logger) *Notifier {
 	return &Notifier{
 		session: session,
 		cfg:     cfg,
+		store:   store,
 		logger:  logger,
 	}
 }
@@ -30,7 +33,7 @@ func New(session *discordgo.Session, cfg *config.Config, logger *slog.Logger) *N
 // Notify builds and sends a Discord embed message for the given issue.
 // It implements the queue.Processor signature.
 func (n *Notifier) Notify(ctx context.Context, issue model.Issue) error {
-	channelID := n.resolveChannel(issue)
+	channelIDs := n.resolveChannels(ctx)
 	mentions := n.buildMentions(issue.Assignees)
 	embed := n.buildEmbed(issue)
 
@@ -39,29 +42,56 @@ func (n *Notifier) Notify(ctx context.Context, issue model.Issue) error {
 		content = mentions
 	}
 
-	_, err := n.session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-		Content: content,
-		Embeds:  []*discordgo.MessageEmbed{embed},
-	})
-	if err != nil {
-		return fmt.Errorf("send discord message: %w", err)
+	var failed []string
+	for _, channelID := range channelIDs {
+		if _, err := n.session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+			Content: content,
+			Embeds:  []*discordgo.MessageEmbed{embed},
+		}); err != nil {
+			n.logger.Error("failed to send discord notification",
+				"issue_number", issue.Number,
+				"channel", channelID,
+				"error", err,
+			)
+			failed = append(failed, channelID)
+			continue
+		}
+
+		n.logger.Info("notification sent",
+			"issue_number", issue.Number,
+			"channel", channelID,
+			"assignees", len(issue.Assignees),
+		)
 	}
 
-	n.logger.Info("notification sent",
-		"issue_number", issue.Number,
-		"channel", channelID,
-		"assignees", len(issue.Assignees),
-	)
+	if len(failed) > 0 {
+		return fmt.Errorf("send discord message failed for channel(s): %s", strings.Join(failed, ", "))
+	}
 	return nil
 }
 
-// resolveChannel determines the target channel based on issue labels.
-func (n *Notifier) resolveChannel(issue model.Issue) string {
-	labels := make([]string, len(issue.Labels))
-	for i, lbl := range issue.Labels {
-		labels[i] = lbl.Name
+// resolveChannels returns the default notification channel plus any extra
+// global channels configured through slash commands.
+func (n *Notifier) resolveChannels(ctx context.Context) []string {
+	channels := []string{n.cfg.Discord.DefaultChannel}
+	extras, err := n.store.ListNotificationChannels(ctx)
+	if err != nil {
+		n.logger.Error("failed to load notification channels; using default only", "error", err)
+		return channels
 	}
-	return n.cfg.ResolveChannel(labels)
+
+	seen := map[string]struct{}{n.cfg.Discord.DefaultChannel: {}}
+	for _, channelID := range extras {
+		if channelID == "" {
+			continue
+		}
+		if _, ok := seen[channelID]; ok {
+			continue
+		}
+		channels = append(channels, channelID)
+		seen[channelID] = struct{}{}
+	}
+	return channels
 }
 
 // buildMentions builds a string of Discord user mentions from assignees.

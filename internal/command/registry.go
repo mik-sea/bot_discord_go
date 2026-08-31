@@ -6,6 +6,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/miksea/bot_discord_go/internal/config"
+	"github.com/miksea/bot_discord_go/internal/mailer"
 	"github.com/miksea/bot_discord_go/internal/planapi"
 	"github.com/miksea/bot_discord_go/internal/store"
 )
@@ -18,17 +19,19 @@ type Registry struct {
 	logger        *slog.Logger
 	inviteStore   *store.InviteStore
 	planClient    *planapi.Client
+	mailClient    *mailer.Mailer
 	registeredIDs []string // Discord-assigned command IDs (for cleanup)
 }
 
 // NewRegistry creates a new Registry.
-func NewRegistry(session *discordgo.Session, cfg *config.Config, logger *slog.Logger, inviteStore *store.InviteStore, planClient *planapi.Client) *Registry {
+func NewRegistry(session *discordgo.Session, cfg *config.Config, logger *slog.Logger, inviteStore *store.InviteStore, planClient *planapi.Client, mailClient *mailer.Mailer) *Registry {
 	return &Registry{
 		session:     session,
 		cfg:         cfg,
 		logger:      logger,
 		inviteStore: inviteStore,
 		planClient:  planClient,
+		mailClient:  mailClient,
 	}
 }
 
@@ -36,7 +39,8 @@ func NewRegistry(session *discordgo.Session, cfg *config.Config, logger *slog.Lo
 // It must be called after the Discord session is opened.
 func (r *Registry) Register(guildID string) error {
 	ping := NewPingHandler(r.cfg, r.logger)
-	invite := NewInviteHandler(r.cfg, r.logger, r.inviteStore, r.planClient)
+	invite := NewInviteHandler(r.cfg, r.logger, r.inviteStore, r.planClient, r.mailClient)
+	notifyChannel := NewNotifyChannelHandler(r.cfg, r.logger, r.inviteStore)
 
 	commands := []struct {
 		def     *discordgo.ApplicationCommand
@@ -44,6 +48,7 @@ func (r *Registry) Register(guildID string) error {
 	}{
 		{Definition(), ping.Handle},
 		{InviteDefinition(), invite.Handle},
+		{NotifyChannelDefinition(), notifyChannel.Handle},
 	}
 
 	for _, cmd := range commands {

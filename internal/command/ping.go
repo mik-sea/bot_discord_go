@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/miksea/bot_discord_go/internal/clock"
 	"github.com/miksea/bot_discord_go/internal/config"
 )
 
@@ -134,7 +135,7 @@ func buildPingEmbed(roundTrip, heartbeat time.Duration, userID string) *discordg
 		},
 		Footer: &discordgo.MessageEmbedFooter{
 			// Footer hanya plain text — jangan taruh mention di sini.
-			Text: time.Now().Format("02 Jan 2006 • 15:04:05 MST"),
+			Text: clock.Now().Format("02 Jan 2006 • 15:04:05 MST"),
 		},
 	}
 }
