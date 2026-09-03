@@ -67,13 +67,23 @@ cp .env.example .env
 | `SMTP_USERNAME` | ✅ (untuk `/invite email`) | Username/login SMTP |
 | `SMTP_PASSWORD` | ✅ (untuk `/invite email`) | Password/app-password SMTP |
 | `SMTP_FROM` | - | Alamat pengirim (default: sama dengan `SMTP_USERNAME`) |
+| `PLAN_INVITE_EMAIL_DOMAIN` | - | Domain email untuk `/invite user` (default: `@kancadigital.com`) |
+| `SMTP_HOST` | ✅ (untuk `/invite email`) | Host SMTP untuk mengirim email undangan |
+| `SMTP_PORT` | - | Port SMTP (default: `587`) |
+| `SMTP_USERNAME` | ✅ (untuk `/invite email`) | Username/login SMTP |
+| `SMTP_PASSWORD` | ✅ (untuk `/invite email`) | Password/app-password SMTP |
+| `SMTP_FROM` | - | Alamat pengirim (default: sama dengan `SMTP_USERNAME`) |
 
 ### `/invite` command
 
 Punya dua subcommand tergantung apakah orang yang diundang ada di Discord atau tidak. Keduanya tunduk pada allowlist `DISCORD_ALLOWED_USERS` yang sama dengan `/ping`.
 
 **`/invite user project_key:<key> user:<@discord_user>`** — untuk member Discord yang bisa di-tag:
+Punya dua subcommand tergantung apakah orang yang diundang ada di Discord atau tidak. Keduanya tunduk pada allowlist `DISCORD_ALLOWED_USERS` yang sama dengan `/ping`.
 
+**`/invite user project_key:<key> user:<@discord_user>`** — untuk member Discord yang bisa di-tag:
+
+1. Data invite (Discord user ID + username, project key, waktu) disimpan ke sqlite.
 1. Data invite (Discord user ID + username, project key, waktu) disimpan ke sqlite.
 2. Bot memanggil `POST {PLAN_API_BASE_URL}/projects/{project_key}/invites` dengan header `x-api-key` dan body `{"email": "<username>@kancadigital.com", "role": "member"}`.
 3. Token undangan dari response API disimpan kembali ke sqlite (kolom `token_id`).

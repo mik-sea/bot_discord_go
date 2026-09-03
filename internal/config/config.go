@@ -14,6 +14,7 @@ type Config struct {
 	Database DatabaseConfig
 	PlanAPI  PlanAPIConfig
 	SMTP     SMTPConfig
+	SMTP     SMTPConfig
 	UserMap  map[string]string // GitHub login -> Discord user ID
 	LabelMap map[string]string // GitHub label name -> Discord channel ID
 	RepoMap  map[string]string // GitHub repo "owner/repo" -> Discord channel ID
@@ -69,6 +70,20 @@ type SMTPConfig struct {
 	Username string
 	Password string
 	From     string
+
+	// InviteEmailDomain is appended to a Discord username to derive the email
+	// address used for "/invite user" (the plan API only accepts emails).
+	InviteEmailDomain string
+}
+
+// SMTPConfig contains credentials for sending invite emails via "/invite email".
+// All values come from environment variables — never hardcode credentials in code.
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
 }
 
 // Load reads all configuration from environment variables.
@@ -90,6 +105,13 @@ func Load() (*Config, error) {
 	cfg.PlanAPI.BaseURL = getEnvOrDefault("PLAN_API_BASE_URL", "https://api-plan.kancadigital.com")
 	cfg.PlanAPI.APIKey = os.Getenv("PLAN_API_KEY")
 	cfg.PlanAPI.InviteWebURL = getEnvOrDefault("PLAN_INVITE_WEB_URL", "https://plan.kancadigital.com/invite")
+	cfg.PlanAPI.InviteEmailDomain = getEnvOrDefault("PLAN_INVITE_EMAIL_DOMAIN", "@kancadigital.com")
+
+	cfg.SMTP.Host = os.Getenv("SMTP_HOST")
+	cfg.SMTP.Port = getEnvOrDefault("SMTP_PORT", "587")
+	cfg.SMTP.Username = os.Getenv("SMTP_USERNAME")
+	cfg.SMTP.Password = os.Getenv("SMTP_PASSWORD")
+	cfg.SMTP.From = getEnvOrDefault("SMTP_FROM", cfg.SMTP.Username)
 	cfg.PlanAPI.InviteEmailDomain = getEnvOrDefault("PLAN_INVITE_EMAIL_DOMAIN", "@kancadigital.com")
 
 	cfg.SMTP.Host = os.Getenv("SMTP_HOST")

@@ -6,6 +6,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/miksea/bot_discord_go/internal/config"
 	"github.com/miksea/bot_discord_go/internal/mailer"
+	"github.com/miksea/bot_discord_go/internal/mailer"
 	"github.com/miksea/bot_discord_go/internal/planapi"
 	"github.com/miksea/bot_discord_go/internal/store"
 )

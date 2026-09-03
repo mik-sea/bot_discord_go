@@ -31,6 +31,8 @@ func (s *Store) CreateForEmail(ctx context.Context, email, projectKey, tokenID s
 	res, err := s.db.ExecContext(ctx,
 		`INSERT INTO invites (email, project_key, token_id, created_at) VALUES (?, ?, ?, ?)`,
 		email, projectKey, tokenID, clock.Now(),
+		`INSERT INTO invites (email, project_key, token_id, created_at) VALUES (?, ?, ?, ?)`,
+		email, projectKey, tokenID, clock.Now(),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert invite: %w", err)
