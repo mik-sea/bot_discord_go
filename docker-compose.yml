@@ -1,0 +1,33 @@
+services:
+  bot:
+    image: ghcr.io/mik-sea/bot_discord_go:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Sengaja tidak ada "ports:" — akses dari luar diatur lewat Domains di
+    # Dokploy (reverse proxy Traefik), bukan port publish langsung ke host.
+    # Lihat bagian "Deploy ke Dokploy" di README.
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_DEFAULT_CHANNEL: ${DISCORD_DEFAULT_CHANNEL}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      GITHUB_DISCORD_USER_MAP: ${GITHUB_DISCORD_USER_MAP}
+      GITHUB_LABEL_CHANNEL_MAP: ${GITHUB_LABEL_CHANNEL_MAP}
+      GITHUB_REPO_CHANNEL_MAP: ${GITHUB_REPO_CHANNEL_MAP}
+      APP_ENV: production
+      DISCORD_ALLOWED_USERS: ${DISCORD_ALLOWED_USERS}
+      DB_PATH: /app/data/bot.db
+      PLAN_API_BASE_URL: ${PLAN_API_BASE_URL}
+      PLAN_API_KEY: ${PLAN_API_KEY}
+      PLAN_INVITE_WEB_URL: ${PLAN_INVITE_WEB_URL}
+      PLAN_INVITE_EMAIL_DOMAIN: ${PLAN_INVITE_EMAIL_DOMAIN}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+    volumes:
+      - bot_data:/app/data
+
+volumes:
+  bot_data:

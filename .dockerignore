@@ -1,0 +1,11 @@
+.git
+.gitignore
+bin/
+data/
+watch/processed/
+watch/failed/
+.env
+*.exe
+*.test
+*.out
+README.md

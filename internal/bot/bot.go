@@ -11,6 +11,7 @@ import (
 	"github.com/miksea/bot_discord_go/internal/command"
 	"github.com/miksea/bot_discord_go/internal/config"
 	"github.com/miksea/bot_discord_go/internal/handler"
+	"github.com/miksea/bot_discord_go/internal/mailer"
 	"github.com/miksea/bot_discord_go/internal/notifier"
 	"github.com/miksea/bot_discord_go/internal/planapi"
 	"github.com/miksea/bot_discord_go/internal/queue"
@@ -22,7 +23,7 @@ const (
 	queueCapacity       = 500
 	workerCount         = 3
 	watcherPollInterval = 5 * time.Second
-	readyTimeout        = 15 * time.Second
+	readyTimeout        = 60 * time.Second
 )
 
 // Bot is the top-level application struct that wires all components together.
@@ -34,7 +35,7 @@ type Bot struct {
 	server          *http.Server
 	watcher         *watcher.FileWatcher
 	commandRegistry *command.Registry
-	inviteStore     *store.InviteStore
+	dataStore       *store.Store
 }
 
 // New creates and connects all components. It does NOT start any goroutines.
@@ -47,7 +48,12 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 	// IntentsGuilds wajib agar Discord mengirim event guild ke bot.
 	session.Identify.Intents = discordgo.IntentsGuilds
 
-	n := notifier.New(session, cfg, logger)
+	dataStore, err := store.Open(cfg.Database.Path)
+	if err != nil {
+		return nil, fmt.Errorf("open data store: %w", err)
+	}
+
+	n := notifier.New(session, cfg, dataStore, logger)
 	q := queue.New(queueCapacity, n.Notify, logger)
 
 	webhookHandler := handler.NewWebhookHandler(q, cfg.Server.WebhookSecret, logger)
@@ -66,12 +72,9 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 
 	fw := watcher.New(cfg.Watcher.Dir, q, logger)
 
-	inviteStore, err := store.Open(cfg.Database.Path)
-	if err != nil {
-		return nil, fmt.Errorf("open invite store: %w", err)
-	}
 	planClient := planapi.New(cfg.PlanAPI.BaseURL, cfg.PlanAPI.APIKey)
-	cmdRegistry := command.NewRegistry(session, cfg, logger, inviteStore, planClient)
+	mailClient := mailer.New(cfg.SMTP)
+	cmdRegistry := command.NewRegistry(session, cfg, logger, dataStore, planClient, mailClient)
 
 	return &Bot{
 		cfg:             cfg,
@@ -81,7 +84,7 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 		server:          srv,
 		watcher:         fw,
 		commandRegistry: cmdRegistry,
-		inviteStore:     inviteStore,
+		dataStore:       dataStore,
 	}, nil
 }
 
@@ -89,15 +92,17 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 // Slash command registration terjadi di dalam handler READY — satu-satunya
 // titik di mana session.State.User dijamin sudah terisi oleh Discord.
 func (b *Bot) Start(ctx context.Context) error {
-	// readyCh menerima nil (sukses) atau error dari handler READY.
-	readyCh := make(chan error, 1)
+	readyCh := make(chan struct{}, 1)
 
 	b.session.AddHandler(func(s *discordgo.Session, _ *discordgo.Ready) {
 		b.logger.Info("discord READY",
 			"username", s.State.User.Username,
 			"id", s.State.User.ID,
 		)
-		readyCh <- b.commandRegistry.Register(b.cfg.Discord.GuildID)
+		select {
+		case readyCh <- struct{}{}:
+		default:
+		}
 	})
 
 	if err := b.session.Open(); err != nil {
@@ -107,14 +112,15 @@ func (b *Bot) Start(ctx context.Context) error {
 
 	// Tunggu konfirmasi READY atau timeout.
 	select {
-	case err := <-readyCh:
-		if err != nil {
-			return fmt.Errorf("register slash commands: %w", err)
-		}
+	case <-readyCh:
 	case <-time.After(readyTimeout):
 		return fmt.Errorf("timeout %s menunggu Discord READY — periksa token dan koneksi internet", readyTimeout)
 	case <-ctx.Done():
 		return nil
+	}
+
+	if err := b.commandRegistry.Register(b.cfg.Discord.GuildIDs); err != nil {
+		return fmt.Errorf("register slash commands: %w", err)
 	}
 
 	b.queue.Start(ctx, workerCount)
@@ -153,14 +159,14 @@ func (b *Bot) shutdown() error {
 	b.queue.Stop()
 
 	// Deregister commands sebelum menutup session agar Discord API call berhasil.
-	b.commandRegistry.Deregister(b.cfg.Discord.GuildID)
+	b.commandRegistry.Deregister()
 
 	if err := b.session.Close(); err != nil {
 		b.logger.Error("discord session close error", "error", err)
 	}
 
-	if err := b.inviteStore.Close(); err != nil {
-		b.logger.Error("invite store close error", "error", err)
+	if err := b.dataStore.Close(); err != nil {
+		b.logger.Error("data store close error", "error", err)
 	}
 
 	b.logger.Info("shutdown complete")

@@ -1,4 +1,4 @@
-.PHONY: run build tidy lint test clean
+.PHONY: run build tidy lint test clean release
 
 BIN := bin/bot
 
@@ -26,3 +26,7 @@ test:
 ## clean: remove compiled binary
 clean:
 	rm -rf bin/
+
+## release: build docker image, tag with git sha (+ latest), push to GHCR
+release:
+	./scripts/release.sh
