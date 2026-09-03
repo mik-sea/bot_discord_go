@@ -14,7 +14,6 @@ type Config struct {
 	Database DatabaseConfig
 	PlanAPI  PlanAPIConfig
 	SMTP     SMTPConfig
-	SMTP     SMTPConfig
 	UserMap  map[string]string // GitHub login -> Discord user ID
 	LabelMap map[string]string // GitHub label name -> Discord channel ID
 	RepoMap  map[string]string // GitHub repo "owner/repo" -> Discord channel ID
@@ -76,15 +75,6 @@ type SMTPConfig struct {
 	InviteEmailDomain string
 }
 
-// SMTPConfig contains credentials for sending invite emails via "/invite email".
-// All values come from environment variables — never hardcode credentials in code.
-type SMTPConfig struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
-}
 
 // Load reads all configuration from environment variables.
 // It returns an error if any required variable is missing.

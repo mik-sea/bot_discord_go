@@ -54,12 +54,6 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 	}
 
 	n := notifier.New(session, cfg, dataStore, logger)
-	inviteStore, err := store.Open(cfg.Database.Path)
-	if err != nil {
-		return nil, fmt.Errorf("open invite store: %w", err)
-	}
-
-	n := notifier.New(session, cfg, inviteStore, logger)
 	q := queue.New(queueCapacity, n.Notify, logger)
 
 	webhookHandler := handler.NewWebhookHandler(q, cfg.Server.WebhookSecret, logger)
@@ -81,8 +75,6 @@ func New(cfg *config.Config, logger *slog.Logger) (*Bot, error) {
 	planClient := planapi.New(cfg.PlanAPI.BaseURL, cfg.PlanAPI.APIKey)
 	mailClient := mailer.New(cfg.SMTP)
 	cmdRegistry := command.NewRegistry(session, cfg, logger, dataStore, planClient, mailClient)
-	mailClient := mailer.New(cfg.SMTP)
-	cmdRegistry := command.NewRegistry(session, cfg, logger, inviteStore, planClient, mailClient)
 
 	return &Bot{
 		cfg:             cfg,
